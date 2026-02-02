@@ -10,9 +10,15 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.11.0",
+    "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.1.1",
+    "@types/react-router-dom": "^5.3.3",
+    "axios": "^1.13.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.6.0",
+    "react-paystack": "^6.0.0",
+    "react-router-dom": "^7.13.0",
     "recharts": "^2.12.2"
   },
   "devDependencies": {

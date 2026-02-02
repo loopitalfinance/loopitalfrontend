@@ -1,513 +1,641 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Project } from '../types';
-import RiskAnalyzer from '../components/RiskAnalyzer';
-import { InvestModal } from '../components/WalletModals';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { Project, Investment } from '../types';
+import { api } from '../services/api';
+import Spinner from '../components/Spinner';
+import ShareModal from '../components/ShareModal';
 import { 
   ArrowLeftIcon, 
-  ShareIcon, 
-  ShieldCheckIcon, 
+  MapPinIcon, 
   ClockIcon, 
-  ArrowTrendingUpIcon, 
   DocumentTextIcon, 
-  BanknotesIcon,
-  CheckBadgeIcon,
-  MapPinIcon,
-  UserCircleIcon,
-  XMarkIcon,
-  BuildingOfficeIcon,
-  BriefcaseIcon,
-  LinkIcon,
-  EnvelopeIcon
+  ChartBarIcon, 
+  ShareIcon,
+  HeartIcon,
+  CalculatorIcon
 } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid, UserGroupIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { toast } from 'react-hot-toast';
 
-interface Props {
-  project: Project;
-  onBack: () => void;
-  userBalance: number;
-  onConfirmInvest: (amount: number) => void;
-}
+// --- Sub-Components defined outside to prevent re-renders/shaking ---
 
-// -- Share Modal --
-const ShareModal = ({ isOpen, onClose, project }: { isOpen: boolean, onClose: () => void, project: Project }) => {
-  const [copied, setCopied] = useState(false);
-  
-  if (!isOpen) return null;
-
-  // Use current window location or fallback
-  const projectUrl = typeof window !== 'undefined' ? window.location.href : `https://loopital.com/projects/${project.id}`;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(projectUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shareLinks = [
-    { 
-      name: 'WhatsApp', 
-      icon: (props: any) => <svg fill="currentColor" viewBox="0 0 24 24" {...props}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>,
-      url: `https://wa.me/?text=${encodeURIComponent(`Check out ${project.title} on Loopital! ${projectUrl}`)}`,
-      color: 'bg-[#25D366] text-white'
-    },
-    { 
-      name: 'Twitter', 
-      icon: (props: any) => <svg fill="currentColor" viewBox="0 0 24 24" {...props}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>,
-      url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${project.title} on Loopital!`)}&url=${encodeURIComponent(projectUrl)}`,
-      color: 'bg-black text-white'
-    },
-    { 
-      name: 'LinkedIn', 
-      icon: (props: any) => <svg fill="currentColor" viewBox="0 0 24 24" {...props}><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>,
-      url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(projectUrl)}`,
-      color: 'bg-[#0077b5] text-white'
-    },
-    { 
-      name: 'Email', 
-      icon: EnvelopeIcon,
-      url: `mailto:?subject=${encodeURIComponent(`Investment Opportunity: ${project.title}`)}&body=${encodeURIComponent(`I found this interesting project on Loopital: ${project.description}\n\nCheck it out here: ${projectUrl}`)}`,
-      color: 'bg-slate-600 text-white'
-    }
-  ];
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-       <div className="absolute inset-0 bg-[#0A192F]/80 backdrop-blur-md transition-opacity" onClick={onClose}></div>
-       <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl relative z-10 overflow-hidden animate-fade-in-up">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-             <h3 className="text-lg font-bold text-[#0A192F]">Share Project</h3>
-             <button onClick={onClose} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
-                <XMarkIcon className="w-5 h-5" />
-             </button>
-          </div>
-          
-          <div className="p-6">
-             <p className="text-sm text-slate-500 mb-6 text-center">Share this opportunity with your network.</p>
-             <div className="flex gap-4 justify-center mb-8">
-                {shareLinks.map((link) => (
-                   <a 
-                     key={link.name}
-                     href={link.url}
-                     target="_blank" 
-                     rel="noopener noreferrer"
-                     className={`w-14 h-14 rounded-2xl flex items-center justify-center ${link.color} hover:scale-110 transition-transform shadow-lg group`}
-                     title={`Share on ${link.name}`}
-                   >
-                      <link.icon className="w-6 h-6 group-hover:animate-pulse" />
-                   </a>
-                ))}
-             </div>
-
-             <div className="relative">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Project Link</label>
-                <div className="flex bg-slate-50 border border-slate-200 rounded-xl overflow-hidden p-1">
-                   <div className="flex items-center pl-3 text-slate-400">
-                      <LinkIcon className="w-4 h-4" />
-                   </div>
-                   <input 
-                     readOnly 
-                     value={projectUrl} 
-                     className="flex-1 bg-transparent px-3 text-sm text-slate-600 outline-none truncate"
-                   />
-                   <button 
-                     onClick={handleCopy}
-                     className={`px-4 py-2 border rounded-lg text-xs font-bold transition-all shadow-sm ${
-                        copied 
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                        : 'bg-white border-slate-200 text-[#0A192F] hover:bg-[#0A192F] hover:text-white'
-                     }`}
-                   >
-                     {copied ? 'Copied!' : 'Copy'}
-                   </button>
-                </div>
-             </div>
-          </div>
-       </div>
-    </div>
-  );
-};
-
-// -- Owner Profile Modal --
-const OwnerProfileModal = ({ isOpen, onClose, ownerName, sector }: { isOpen: boolean, onClose: () => void, ownerName: string, sector: string }) => {
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-       <div className="absolute inset-0 bg-[#0A192F]/80 backdrop-blur-md transition-opacity" onClick={onClose}></div>
-       <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl relative z-10 overflow-hidden animate-fade-in-up">
-          <div className="h-24 bg-[#0A192F] relative">
-             <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
-                <XMarkIcon className="w-5 h-5" />
-             </button>
-          </div>
-          <div className="px-8 pb-8 -mt-12">
-             <div className="flex justify-between items-end mb-4">
-                <div className="w-24 h-24 bg-white p-1 rounded-2xl shadow-lg">
-                   <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden">
-                      <BuildingOfficeIcon className="w-10 h-10 text-slate-300" />
-                   </div>
-                </div>
-                <div className="flex gap-2 mb-2">
-                   <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-1">
-                      <CheckBadgeIcon className="w-3.5 h-3.5" /> Verified
-                   </span>
-                </div>
-             </div>
-             
-             <h3 className="text-2xl font-bold text-[#0A192F] mb-1">{ownerName}</h3>
-             <p className="text-sm text-slate-500 font-medium mb-6">Premium {sector} Developer</p>
-             
-             <div className="grid grid-cols-3 gap-3 mb-8">
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                   <p className="text-lg font-bold text-[#0A192F]">12</p>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase">Projects</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                   <p className="text-lg font-bold text-[#00DC82]">98%</p>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase">Success</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                   <p className="text-lg font-bold text-[#0A192F]">4yr</p>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase">On Platform</p>
-                </div>
-             </div>
-             
-             <h4 className="text-xs font-bold text-[#0A192F] uppercase tracking-wider mb-2">About</h4>
-             <p className="text-sm text-slate-600 leading-relaxed mb-8">
-                {ownerName} is a leading developer in the {sector} sector, committed to sustainable growth and high-yield asset management. They have raised over ₦4.5B on Loopital with a perfect repayment track record.
-             </p>
-             
-             <button className="w-full py-3 border-2 border-[#0A192F] text-[#0A192F] font-bold rounded-xl hover:bg-[#0A192F] hover:text-white transition-all text-sm">
-                Contact Business
-             </button>
-          </div>
-       </div>
-    </div>
-  );
-};
-
-const ProjectDetails: React.FC<Props> = ({ project, onBack, userBalance, onConfirmInvest }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents'>('overview');
-  const [isInvestModalOpen, setIsInvestModalOpen] = useState(false);
-  const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [animatedProgress, setAnimatedProgress] = useState(0);
-  
-  const percentRaised = Math.min(100, (project.raisedAmount / project.targetAmount) * 100);
-
-  // Simulated historical data based on current progress
-  const fundingHistory = useMemo(() => {
-    return [
-       { name: 'Start', amount: 0 },
-       { name: 'Wk 2', amount: project.raisedAmount * 0.15 },
-       { name: 'Wk 4', amount: project.raisedAmount * 0.35 },
-       { name: 'Wk 6', amount: project.raisedAmount * 0.60 },
-       { name: 'Wk 8', amount: project.raisedAmount * 0.85 },
-       { name: 'Today', amount: project.raisedAmount },
-    ];
-  }, [project.raisedAmount]);
-
-  useEffect(() => {
-    // Trigger animation after mount
-    const timer = setTimeout(() => {
-      setAnimatedProgress(percentRaised);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [percentRaised]);
-
-  const handleInvestSuccess = (amount: number) => {
-    onConfirmInvest(amount);
-    setIsInvestModalOpen(false);
-  };
-
-  return (
-    <div className="animate-fade-in font-inter pb-20">
-      <InvestModal 
-         isOpen={isInvestModalOpen} 
-         onClose={() => setIsInvestModalOpen(false)}
-         onConfirm={handleInvestSuccess}
-         project={project}
-         userBalance={userBalance}
-      />
+const OverviewTab: React.FC<{ project: Project }> = ({ project }) => (
+  <div className="space-y-8">
+    <div className="prose prose-slate max-w-none">
+      <h3 className="text-xl font-bold text-[#0A192F] mb-4">Executive Summary</h3>
+      <p className="text-slate-600 leading-relaxed mb-6">{project.description}</p>
       
-      <OwnerProfileModal 
-         isOpen={isOwnerModalOpen}
-         onClose={() => setIsOwnerModalOpen(false)}
-         ownerName={project.owner}
-         sector={project.sector}
-      />
-
-      <ShareModal 
-         isOpen={isShareModalOpen}
-         onClose={() => setIsShareModalOpen(false)}
-         project={project}
-      />
-
-      {/* Hero Header */}
-      <div className="relative h-[400px] w-full bg-[#0A192F]">
-        <img src={project.imageUrl} alt={project.title} className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0A192F] via-[#0A192F]/60 to-transparent"></div>
-        
-        <div className="absolute top-6 left-4 sm:left-8 z-20">
-          <button 
-            onClick={onBack}
-            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white text-sm font-bold transition-all border border-white/10"
-          >
-            <ArrowLeftIcon className="w-4 h-4" /> Back to Market
-          </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 hover:border-[#00DC82]/30 transition-all">
+          <h4 className="font-bold text-[#0A192F] mb-2 flex items-center gap-2">
+            <ChartBarIcon className="w-5 h-5 text-[#00DC82]" /> Risk Mitigation
+          </h4>
+          <p className="text-sm text-slate-500">
+            {project.riskMitigationPlan || "This project is backed by physical assets valued at 150% of the loan amount. Insurance coverage is provided by Leadway Assurance."}
+          </p>
         </div>
-
-        <div className="absolute bottom-0 left-0 w-full p-4 sm:p-8 lg:p-12 z-10">
-          <div className="max-w-7xl mx-auto w-full">
-            <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
-              <div>
-                <div className="flex flex-wrap items-center gap-3 mb-4">
-                  <span className="px-3 py-1 bg-[#00DC82] text-[#0A192F] rounded-full text-xs font-bold uppercase tracking-wider shadow-lg shadow-green-500/20">
-                    {project.sector}
-                  </span>
-                  <span className="px-3 py-1 bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur border border-white/10 flex items-center gap-1.5">
-                    <MapPinIcon className="w-3.5 h-3.5" /> Lagos, NG
-                  </span>
-                  <span className="px-3 py-1 bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur border border-white/10 flex items-center gap-1.5">
-                    <CheckBadgeIcon className="w-3.5 h-3.5 text-[#00DC82]" /> Verified Owner
-                  </span>
-                </div>
-                <h1 className="text-3xl md:text-5xl font-bold text-white mb-2 tracking-tight">{project.title}</h1>
-                <p className="text-slate-300 font-medium text-lg flex items-center gap-2">
-                   Powered by <span className="text-white font-bold">{project.owner}</span>
-                </p>
-              </div>
-              <div className="flex gap-4">
-                 <button 
-                    onClick={() => setIsShareModalOpen(true)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white border border-white/10 backdrop-blur transition-colors"
-                 >
-                    <ShareIcon className="w-5 h-5" />
-                 </button>
-              </div>
-            </div>
-          </div>
+        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 hover:border-[#00DC82]/30 transition-all">
+           <h4 className="font-bold text-[#0A192F] mb-2 flex items-center gap-2">
+            <ChartBarIcon className="w-5 h-5 text-[#00DC82]" /> Market Validation
+          </h4>
+          <p className="text-sm text-slate-500">
+            {project.tractionData?.summary || "Demand for affordable housing in this location has grown by 25% YoY. Pre-sales have already reached 40% of total units."}
+          </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Nav Tabs */}
-            <div className="bg-white rounded-2xl p-1.5 border border-slate-100 shadow-sm inline-flex flex-wrap gap-1">
-               {['overview', 'financials', 'documents'].map(tab => (
-                 <button
-                   key={tab}
-                   onClick={() => setActiveTab(tab as any)}
-                   className={`px-5 py-2.5 rounded-xl text-sm font-bold capitalize transition-all ${
-                     activeTab === tab 
-                     ? 'bg-[#0A192F] text-white shadow-md' 
-                     : 'text-slate-500 hover:text-[#0A192F] hover:text-[#0A192F] hover:bg-slate-50'
-                   }`}
-                 >
-                   {tab}
-                 </button>
-               ))}
-            </div>
+      <h3 className="text-xl font-bold text-[#0A192F] mb-4">The Opportunity</h3>
+      <p className="text-slate-600 leading-relaxed">
+        {project.fullDetails || "Investors have the unique opportunity to participate in a high-growth real estate development located in the heart of the Lekki Free Trade Zone."}
+      </p>
+    </div>
 
-            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm min-h-[400px]">
-               {activeTab === 'overview' && (
-                 <div className="space-y-8 animate-fade-in">
-                   <div>
-                     <h3 className="text-xl font-bold text-[#0A192F] mb-4">Investment Thesis</h3>
-                     <p className="text-slate-600 leading-relaxed text-base">
-                       {project.fullDetails}
-                     </p>
-                   </div>
-                   
-                   <RiskAnalyzer project={project} />
+    {/* Gallery Grid */}
+    {project.images && project.images.length > 0 ? (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+         {project.images.map((img, i) => (
+           <div key={img.id || i} className="aspect-square rounded-xl overflow-hidden bg-slate-200">
+              <img 
+                src={img.image} 
+                alt={img.caption || "Gallery Image"} 
+                className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+              />
+           </div>
+         ))}
+      </div>
+    ) : null}
+  </div>
+);
 
-                   <div className="border-t border-slate-100 pt-8">
-                      <h3 className="text-lg font-bold text-[#0A192F] mb-6">Project Highlights</h3>
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        {[
-                          "Secure asset-backed collateral",
-                          "Monthly progress reports verified by admin",
-                          "Guaranteed buy-back clause included",
-                          "Insurance coverage by AXA Mansard"
-                        ].map((item, i) => (
-                           <div key={i} className="flex items-start gap-3">
-                              <CheckBadgeIcon className="w-5 h-5 text-[#00DC82] flex-shrink-0 mt-0.5" />
-                              <span className="text-slate-600 text-sm">{item}</span>
-                           </div>
-                        ))}
-                      </div>
-                   </div>
-                 </div>
-               )}
+const FinancialsTab: React.FC<{ project: Project; chartData: any[]; minInvest: number }> = ({ project, chartData, minInvest }) => (
+  <div className="space-y-8">
+     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <h3 className="text-lg font-bold text-[#0A192F] mb-6">Projected Revenue Growth</h3>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00DC82" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#00DC82" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+              <Tooltip 
+                contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+              />
+              <Area type="monotone" dataKey="value" stroke="#00DC82" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+     </div>
 
-               {activeTab === 'financials' && (
-                  <div className="space-y-6 animate-fade-in">
-                     {/* Funding History Chart */}
-                     <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                        <div className="flex justify-between items-center mb-6">
-                           <h3 className="text-lg font-bold text-[#0A192F]">Funding Velocity</h3>
-                           <div className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded text-xs font-bold">Live Tracking</div>
-                        </div>
-                        <div className="h-[250px] w-full">
-                           <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={fundingHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                 <defs>
-                                    <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                                       <stop offset="5%" stopColor="#00DC82" stopOpacity={0.1}/>
-                                       <stop offset="95%" stopColor="#00DC82" stopOpacity={0}/>
-                                    </linearGradient>
-                                 </defs>
-                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} dy={10} />
-                                 <YAxis 
-                                     axisLine={false} 
-                                     tickLine={false} 
-                                     tick={{fontSize: 12, fill: '#94a3b8'}} 
-                                     tickFormatter={(value) => `₦${(value/1000000).toFixed(0)}M`}
-                                 />
-                                 <Tooltip 
-                                     contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}
-                                     formatter={(value: number) => [`₦${value.toLocaleString()}`, 'Raised']}
-                                     labelStyle={{color: '#64748b', marginBottom: '4px'}}
-                                 />
-                                 <Area 
-                                     type="monotone" 
-                                     dataKey="amount" 
-                                     stroke="#00DC82" 
-                                     strokeWidth={3} 
-                                     fillOpacity={1} 
-                                     fill="url(#colorAmount)" 
-                                 />
-                              </AreaChart>
-                           </ResponsiveContainer>
-                        </div>
-                     </div>
+     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+           <p className="text-xs font-bold text-slate-400 uppercase mb-1">Total Valuation</p>
+           <p className="text-2xl font-bold text-[#0A192F]">₦{(project.valuation || 50000000).toLocaleString()}</p>
+        </div>
+        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+           <p className="text-xs font-bold text-slate-400 uppercase mb-1">Min. Investment</p>
+           <p className="text-2xl font-bold text-[#0A192F]">₦{minInvest.toLocaleString()}</p>
+        </div>
+        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+           <p className="text-xs font-bold text-slate-400 uppercase mb-1">Share Price</p>
+           <p className="text-2xl font-bold text-[#0A192F]">₦1,000</p>
+        </div>
+     </div>
+  </div>
+);
 
-                     <h3 className="text-xl font-bold text-[#0A192F]">Financial Projections</h3>
-                     <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                           <div>
-                              <p className="text-xs text-slate-500 uppercase font-bold">Annual ROI</p>
-                              <p className="text-2xl font-bold text-[#0A192F]">{project.roi}%</p>
-                           </div>
-                           <div>
-                              <p className="text-xs text-slate-500 uppercase font-bold">Duration</p>
-                              <p className="text-2xl font-bold text-[#0A192F]">{project.durationMonths} Mo</p>
-                           </div>
-                           <div>
-                              <p className="text-xs text-slate-500 uppercase font-bold">Payout</p>
-                              <p className="text-base font-bold text-[#0A192F]">Quarterly</p>
-                           </div>
-                           <div>
-                              <p className="text-xs text-slate-500 uppercase font-bold">Type</p>
-                              <p className="text-base font-bold text-[#0A192F]">Equity + Debt</p>
-                           </div>
-                        </div>
-                     </div>
-                     <p className="text-slate-500 text-sm">
-                        Detailed cash flow analysis and projected balance sheets are available in the documents section.
-                     </p>
-                  </div>
-               )}
-
-               {activeTab === 'documents' && (
-                  <div className="space-y-4 animate-fade-in">
-                     <h3 className="text-xl font-bold text-[#0A192F] mb-4">Due Diligence Documents</h3>
-                     {[
-                        "Project Prospectus (PDF)",
-                        "Financial Model (Excel)",
-                        "Legal Agreement (PDF)",
-                        "Insurance Certificate (PDF)"
-                     ].map((doc, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors group cursor-pointer">
-                           <div className="flex items-center gap-4">
-                              <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-white group-hover:shadow-sm transition-all">
-                                 <DocumentTextIcon className="w-6 h-6 text-slate-500" />
-                              </div>
-                              <span className="font-bold text-[#0A192F] text-sm">{doc}</span>
-                           </div>
-                           <button className="text-xs font-bold text-[#00DC82] border border-[#00DC82] px-3 py-1.5 rounded-lg hover:bg-[#00DC82] hover:text-white transition-all">Download</button>
-                        </div>
-                     ))}
-                  </div>
-               )}
-            </div>
+const CalculatorTab: React.FC<{ 
+  project: Project; 
+  amount: number; 
+  setAmount: (val: number) => void;
+  estimatedReturn: number;
+  profit: number;
+}> = ({ project, amount, setAmount, estimatedReturn, profit }) => (
+  <div className="max-w-2xl mx-auto">
+    <div className="bg-[#0A192F] p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+       <div className="absolute top-0 right-0 p-40 bg-[#00DC82] rounded-full blur-3xl opacity-10 -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+       
+       <div className="flex items-center gap-3 mb-8">
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+            <CalculatorIcon className="w-6 h-6 text-[#00DC82]" />
           </div>
-
-          {/* Sticky Sidebar */}
-          <div className="lg:col-span-1">
-             <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xl shadow-slate-200/50 sticky top-24">
-                <div className="mb-6">
-                   <div className="flex justify-between items-end mb-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Funding Progress</span>
-                      <span className="text-xl font-bold text-[#0A192F]">{percentRaised.toFixed(0)}%</span>
-                   </div>
-                   <div className="w-full bg-slate-100 rounded-full h-3 mb-4 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-teal-500 to-[#00DC82] h-full rounded-full shadow-[0_0_10px_rgba(0,220,130,0.4)] transition-all duration-1000 ease-out" 
-                        style={{ width: `${animatedProgress}%` }}
-                      ></div>
-                   </div>
-                   <div className="flex justify-between text-xs text-slate-500 font-medium">
-                      <span>Raised: <strong className="text-[#0A192F]">₦{(project.raisedAmount/1000000).toFixed(1)}M</strong></span>
-                      <span>Target: <strong className="text-[#0A192F]">₦{(project.targetAmount/1000000).toFixed(1)}M</strong></span>
-                   </div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                   <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                      <span className="text-sm text-slate-500 flex items-center gap-2">
-                         <BanknotesIcon className="w-4 h-4" /> Min. Investment
-                      </span>
-                      <span className="font-bold text-[#0A192F]">₦{project.minInvestment.toLocaleString()}</span>
-                   </div>
-                   <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                      <span className="text-sm text-slate-500 flex items-center gap-2">
-                         <ArrowTrendingUpIcon className="w-4 h-4" /> Exp. Returns
-                      </span>
-                      <span className="font-bold text-[#00DC82]">{project.roi}% / yr</span>
-                   </div>
-                   <div className="flex justify-between items-center py-3 border-b border-slate-50">
-                      <span className="text-sm text-slate-500 flex items-center gap-2">
-                         <ClockIcon className="w-4 h-4" /> Maturity
-                      </span>
-                      <span className="font-bold text-[#0A192F]">{project.durationMonths} Months</span>
-                   </div>
-                </div>
-
-                <button 
-                  onClick={() => setIsInvestModalOpen(true)}
-                  className="w-full py-4 bg-[#0A192F] hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-xl shadow-slate-900/20 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                   Invest Now
-                </button>
-                
-                <p className="text-xs text-slate-400 text-center mt-4 flex items-center justify-center gap-1.5">
-                   <ShieldCheckIcon className="w-3.5 h-3.5" /> 
-                   Funds held in secure Escrow
-                </p>
+          <div>
+            <h3 className="text-xl font-bold">Profit Calculator</h3>
+            <p className="text-slate-400 text-sm">Estimate your potential returns</p>
+          </div>
+       </div>
+       
+       <div className="space-y-6 relative z-10">
+          <div>
+             <label className="text-xs text-slate-400 font-bold uppercase mb-3 block">Investment Amount</label>
+             <div className="relative group">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00DC82] transition-colors">₦</span>
+                <input 
+                  type="number" 
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-8 pr-4 text-white text-lg placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#00DC82] transition-all"
+                />
+             </div>
+          </div>
+          
+          <div className="pt-6 border-t border-white/10 space-y-4">
+             <div className="flex justify-between items-center">
+                <span className="text-slate-400">ROI Rate</span>
+                <span className="font-bold text-[#00DC82] text-lg">{project.roi || 15}%</span>
+             </div>
+             <div className="flex justify-between items-center">
+                <span className="text-slate-400">Duration</span>
+                <span className="font-bold text-white text-lg">{project.durationMonths || 12} Months</span>
              </div>
              
-             {/* Owner Mini Profile Link */}
-             <div 
-                onClick={() => setIsOwnerModalOpen(true)}
-                className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm mt-6 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors group"
-             >
-                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-                   <UserCircleIcon className="w-8 h-8 text-slate-400" />
+             <div className="mt-6 p-6 bg-[#00DC82]/10 rounded-2xl border border-[#00DC82]/20">
+                <div className="flex justify-between items-end mb-2">
+                  <p className="text-xs text-[#00DC82] uppercase font-bold">Estimated Returns</p>
+                  <p className="text-xs text-[#00DC82] uppercase font-bold">Profit</p>
                 </div>
-                <div>
-                   <p className="text-xs text-slate-400 uppercase font-bold">Project Owner</p>
-                   <p className="font-bold text-[#0A192F]">{project.owner}</p>
+                <div className="flex justify-between items-end">
+                  <p className="text-3xl font-bold text-white">₦{estimatedReturn.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-[#00DC82]">+₦{profit.toLocaleString()}</p>
                 </div>
-                <button className="ml-auto text-xs font-bold text-teal-600 group-hover:text-teal-800 transition-colors">View Profile</button>
              </div>
           </div>
+       </div>
+    </div>
+  </div>
+);
+
+const UpdatesTab: React.FC<{ project: Project }> = ({ project }) => {
+  // Use milestones as updates if available, otherwise fallback to existing updates array
+  const updates = project.milestones && project.milestones.length > 0 
+      ? project.milestones 
+      : (project.updates || []);
+
+  return (
+    <div className="space-y-8">
+      <h3 className="text-xl font-bold text-[#0A192F] mb-4">Project Updates & Milestones</h3>
+      {updates.length > 0 ? (
+        updates.map((update: any) => (
+          <div key={update.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-4">
+            <div className="flex justify-between items-start mb-2">
+                <h4 className="font-bold text-[#0A192F]">{update.title}</h4>
+                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                    update.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    update.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                    'bg-slate-200 text-slate-600'
+                }`}>
+                    {update.status || 'Update'}
+                </span>
+            </div>
+            <p className="text-slate-600 leading-relaxed">{update.description || update.content}</p>
+            
+            {/* Show proof document if available */}
+            {update.proof_document && (
+                <div className="mt-4">
+                    <a 
+                        href={update.proof_document} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                    >
+                        <DocumentTextIcon className="w-4 h-4" />
+                        View Proof Document
+                    </a>
+                </div>
+            )}
+            
+            <p className="text-xs text-slate-400 mt-2">{new Date(update.date || update.created_at).toLocaleDateString()}</p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <DocumentTextIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500 font-medium">No updates released yet.</p>
+          <p className="text-sm text-slate-400 mt-1">Updates will be posted here as the project progresses.</p>
         </div>
+      )}
+    </div>
+  );
+};
+
+const ProjectDetailsSkeleton: React.FC = () => (
+  <div className="min-h-screen bg-white pb-20 font-inter animate-pulse">
+    <div className="h-[60vh] bg-slate-200 w-full relative">
+       <div className="absolute bottom-0 left-0 w-full p-12 max-w-7xl mx-auto">
+          <div className="h-8 w-32 bg-slate-300 rounded-full mb-4"></div>
+          <div className="h-12 w-3/4 bg-slate-300 rounded-lg mb-4"></div>
+          <div className="flex gap-4">
+             <div className="h-6 w-24 bg-slate-300 rounded"></div>
+             <div className="h-6 w-24 bg-slate-300 rounded"></div>
+          </div>
+       </div>
+    </div>
+    <div className="max-w-7xl mx-auto px-6 py-12">
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className="lg:col-span-2">
+             <div className="flex gap-6 mb-8 border-b border-slate-100 pb-4">
+                <div className="h-8 w-24 bg-slate-200 rounded"></div>
+                <div className="h-8 w-24 bg-slate-200 rounded"></div>
+                <div className="h-8 w-24 bg-slate-200 rounded"></div>
+             </div>
+             <div className="space-y-4">
+                <div className="h-4 w-full bg-slate-100 rounded"></div>
+                <div className="h-4 w-full bg-slate-100 rounded"></div>
+                <div className="h-4 w-2/3 bg-slate-100 rounded"></div>
+             </div>
+          </div>
+          <div className="h-96 bg-slate-100 rounded-3xl"></div>
+       </div>
+    </div>
+  </div>
+);
+
+// --- Main Component ---
+
+const ProjectDetails: React.FC = () => {
+  const { uuid } = useParams<{ uuid: string }>();
+  const navigate = useNavigate();
+  const { projects, user, refreshData } = useApp();
+  
+  // Support UUID only lookup - Memoize project lookup
+  const project = React.useMemo(() => 
+    projects.find(p => p && (p.uuid === uuid || String(p.id) === String(uuid))),
+    [projects, uuid]
+  );
+
+  // Ensure data is loaded
+  useEffect(() => {
+    if (projects.length === 0) {
+        refreshData();
+    }
+  }, [projects.length, refreshData]);
+
+  const userBalance = user?.walletBalance || 0;
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'updates' | 'calculator'>('overview');
+  const [investAmount, setInvestAmount] = useState<string>('');
+  
+  // Investors State
+  const [investorCount, setInvestorCount] = useState<number>(0);
+  const [hasFetchedInvestors, setHasFetchedInvestors] = useState(false);
+  const [currentUserInvested, setCurrentUserInvested] = useState(false);
+  
+  // Investment Action State
+  const [investing, setInvesting] = useState(false);
+  const [investSuccess, setInvestSuccess] = useState(false);
+
+  const [isLiked, setIsLiked] = useState(false);
+  
+  // Modal States
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  // Profit Calculator State
+  const [calculatorAmount, setCalculatorAmount] = useState<number>(100000);
+
+  // Load real investor count - Prevent re-fetching loop
+  useEffect(() => {
+    const fetchInvestorCount = async () => {
+      // Use fallback for id if project is not yet loaded, though effect should handle it
+      if (!project?.id || hasFetchedInvestors) return;
+      try {
+        const allInvestments = await api.getInvestments();
+        // Filter investments for this project
+        const projectInvestments = allInvestments.filter((inv: any) => {
+           const pId = typeof inv.project === 'object' ? inv.project.id : inv.project;
+           return String(pId) === String(project.id);
+        });
+        setInvestorCount(projectInvestments.length);
+        
+        // Check if current user has invested
+        if (user) {
+            const hasInvested = projectInvestments.some((inv: any) => {
+                const userId = typeof inv.user === 'object' ? inv.user.id : inv.user;
+                return String(userId) === String(user.id);
+            });
+            setCurrentUserInvested(hasInvested);
+        }
+
+        setHasFetchedInvestors(true);
+      } catch (error: any) {
+        console.error('Failed to load investors count', error);
+        // Only log out if explicitly 401 and not already handled globally
+        if (error.status === 401) {
+             // Let the global interceptor handle it, or do nothing if it's just a sub-fetch
+        }
+      }
+    };
+    fetchInvestorCount();
+  }, [project?.id, hasFetchedInvestors]);
+
+  // Check wishlist state on mount
+  useEffect(() => {
+      const wishlist = JSON.parse(localStorage.getItem('wishlist_project_ids') || '[]');
+      // Ensure we compare as strings to avoid type mismatches
+      if (project && wishlist.some((id: string | number) => String(id) === String(project.id))) {
+          setIsLiked(true);
+      }
+  }, [project]);
+
+  if (!project) {
+    return <ProjectDetailsSkeleton />;
+  }
+
+  const handleInvest = async () => {
+    if (!investAmount || !project.id) return;
+    
+    const amount = Number(investAmount);
+    const minimum = project.minInvestment || 50000;
+    
+    if (amount < minimum) {
+       toast.error(`Minimum investment is ₦${minimum.toLocaleString()}`);
+       return;
+    }
+    
+    if (userBalance < amount) {
+       toast.error("Insufficient wallet balance");
+       return;
+    }
+    
+    setInvesting(true);
+    setInvestSuccess(false);
+    
+    try {
+      await api.investInProject(project.uuid || project.id, amount);
+      setInvestSuccess(true);
+       toast.success("Investment successful!");
+       refreshData();
+       setInvestAmount('');
+       // Update local investor count only if not already invested
+       if (!currentUserInvested) {
+           setInvestorCount(prev => prev + 1);
+           setCurrentUserInvested(true);
+       }
+       // Reset success state after delay
+       setTimeout(() => setInvestSuccess(false), 3000);
+    } catch (error: any) {
+       console.error('Investment failed', error);
+       toast.error(error.message || "Investment failed");
+       setInvestSuccess(false);
+    } finally {
+       setInvesting(false);
+    }
+  };
+
+  const handleWishlistToggle = () => {
+    const wishlist = JSON.parse(localStorage.getItem('wishlist_project_ids') || '[]');
+    let newWishlist;
+    
+    if (isLiked) {
+        // Remove - compare as strings
+        newWishlist = wishlist.filter((id: string | number) => String(id) !== String(project.id));
+        toast.success('Removed from wishlist');
+    } else {
+        // Add
+        if (!wishlist.some((id: string | number) => String(id) === String(project.id))) {
+            newWishlist = [...wishlist, project.id];
+            toast.success('Added to wishlist');
+        } else {
+            newWishlist = wishlist;
+        }
+    }
+    
+    localStorage.setItem('wishlist_project_ids', JSON.stringify(newWishlist));
+    setIsLiked(!isLiked);
+  };
+
+  // Calculations
+  const progress = Math.min(100, (project.raisedAmount / project.targetAmount) * 100);
+  const timeLeft = Math.max(0, Math.ceil((new Date(project.endDate || '2024-12-31').getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const minInvest = project.minInvestment || 50000;
+  
+  // Profit Calculator Logic
+  const estimatedReturn = Math.round(calculatorAmount * (1 + (project.roi || 15)/100));
+  const profit = estimatedReturn - calculatorAmount;
+
+  // Chart Data
+  const generateChartData = () => {
+    if (!project) return [];
+    const data = [];
+    const months = project.durationMonths || 12;
+    const roi = project.roi || 15;
+    const startValue = 1000; // Normalized start
+    const monthlyGrowth = (roi / 100) / months;
+    
+    for (let i = 0; i <= Math.min(months, 6); i++) {
+       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+       const currentMonth = new Date().getMonth();
+       const monthLabel = monthNames[(currentMonth + i) % 12];
+       
+       data.push({
+         month: monthLabel,
+         value: Math.round(startValue * (1 + (monthlyGrowth * i)))
+       });
+    }
+    return data;
+  };
+  const chartData = generateChartData();
+
+  return (
+    <div className="min-h-screen bg-white pb-20 font-inter">
+      <ShareModal 
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        projectTitle={project.title}
+        projectImage={project.image}
+        projectUuid={project.uuid}
+      />
+      {/* -- Hero Section -- */}
+      <div className="relative h-[60vh] min-h-[500px] w-full overflow-hidden">
+        <img 
+          src={project.image || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80"} 
+          alt={project.title} 
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A192F] via-[#0A192F]/80 to-transparent"></div>
+        
+        {/* Navigation */}
+        <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-20">
+           <button 
+            onClick={() => navigate(-1)}
+            className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all border border-white/10 group"
+          >
+            <ArrowLeftIcon className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+          </button>
+           <div className="flex gap-3">
+              <button 
+                onClick={handleWishlistToggle}
+                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all border border-white/10"
+              >
+                {isLiked ? <HeartIconSolid className="w-6 h-6 text-red-500" /> : <HeartIcon className="w-6 h-6" />}
+              </button>
+              <button 
+                onClick={() => setIsShareModalOpen(true)}
+                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all border border-white/10"
+              >
+                <ShareIcon className="w-6 h-6" />
+              </button>
+           </div>
+        </div>
+
+        {/* Hero Content */}
+        <div className="absolute bottom-0 left-0 w-full p-4 md:p-12 max-w-7xl mx-auto z-10">
+           <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-end justify-between">
+              <div className="flex-1 w-full">
+                 <div className="flex gap-2 mb-3 md:mb-4">
+                    <span className="px-2.5 py-1 bg-[#00DC82] text-[#0A192F] text-[10px] md:text-xs font-bold uppercase tracking-wide rounded-full">
+                       {project.sector}
+                    </span>
+                    <span className="px-2.5 py-1 bg-white/10 backdrop-blur text-white text-[10px] md:text-xs font-bold uppercase tracking-wide rounded-full border border-white/10">
+                       {project.status}
+                    </span>
+                 </div>
+                 <h1 className="text-2xl md:text-5xl font-bold text-white mb-3 md:mb-4 leading-tight">
+                    {project.title}
+                 </h1>
+                 <div className="flex flex-wrap gap-4 md:gap-6 text-slate-300 text-xs md:text-sm">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                       <MapPinIcon className="w-4 h-4 md:w-5 md:h-5 text-[#00DC82]" />
+                       {project.location || "Lekki, Lagos"}
+                    </div>
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                       <ClockIcon className="w-4 h-4 md:w-5 md:h-5 text-[#00DC82]" />
+                       {timeLeft} days left
+                    </div>
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                       <UserGroupIcon className="w-4 h-4 md:w-5 md:h-5 text-[#00DC82]" />
+                       {investorCount > 0 ? investorCount : "Be the first"} Investor{investorCount !== 1 ? 's' : ''}
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="w-full md:w-auto bg-white/10 backdrop-blur-md border border-white/10 p-4 md:p-6 rounded-2xl md:min-w-[300px]">
+                 <div className="flex justify-between items-end mb-2">
+                    <span className="text-slate-300 text-xs md:text-sm">Raised Amount</span>
+                    <span className="text-xl md:text-2xl font-bold text-white font-mono">₦{project.raisedAmount.toLocaleString()}</span>
+                 </div>
+                 <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-2">
+                    <div className="h-full bg-[#00DC82] rounded-full" style={{ width: `${progress}%` }}></div>
+                 </div>
+                 <div className="flex justify-between text-[10px] md:text-xs text-slate-400">
+                    <span>{progress.toFixed(1)}% Funded</span>
+                    <span>Target: ₦{project.targetAmount.toLocaleString()}</span>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+
+      {/* -- Main Content -- */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            
+            {/* Left Column (Content) */}
+            <div className="lg:col-span-2">
+               {/* Tabs */}
+               <div className="flex gap-6 border-b border-slate-100 mb-8 overflow-x-auto no-scrollbar">
+                  {['overview', 'financials', 'updates', 'calculator'].map((tab) => (
+                     <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab as any)}
+                        className={`pb-4 text-sm font-bold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap ${
+                           activeTab === tab 
+                           ? 'border-[#00DC82] text-[#0A192F]' 
+                           : 'border-transparent text-slate-400 hover:text-slate-600'
+                        }`}
+                     >
+                        {tab}
+                     </button>
+                  ))}
+               </div>
+
+               {/* Tab Content */}
+               <div className="min-h-[400px]">
+                  {activeTab === 'overview' && <OverviewTab project={project} />}
+                  {activeTab === 'financials' && <FinancialsTab project={project} chartData={chartData} minInvest={minInvest} />}
+                  {activeTab === 'calculator' && (
+                     <CalculatorTab 
+                        project={project} 
+                        amount={calculatorAmount} 
+                        setAmount={setCalculatorAmount}
+                        estimatedReturn={estimatedReturn}
+                        profit={profit}
+                     />
+                  )}
+                  {activeTab === 'updates' && <UpdatesTab project={project} />}
+               </div>
+            </div>
+
+            {/* Right Column (Invest Card) */}
+            <div className="space-y-6">
+               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl sticky top-24">
+                  <h3 className="text-xl font-bold text-[#0A192F] mb-6">Invest in this Project</h3>
+                  
+                  <div className="space-y-4 mb-6">
+                     <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Min. Investment</span>
+                        <span className="font-bold text-[#0A192F]">₦{minInvest.toLocaleString()}</span>
+                     </div>
+                     <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Target Returns</span>
+                        <span className="font-bold text-[#00DC82]">{project.roi || 15}%</span>
+                     </div>
+                     <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Duration</span>
+                        <span className="font-bold text-[#0A192F]">{project.durationMonths || 12} Months</span>
+                     </div>
+                  </div>
+
+                  <div className="mb-6">
+                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Amount to Invest</label>
+                     <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₦</span>
+                        <input 
+                           type="number" 
+                           value={investAmount}
+                           onChange={(e) => setInvestAmount(e.target.value)}
+                           placeholder={minInvest.toString()}
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-8 pr-4 font-bold text-[#0A192F] focus:outline-none focus:ring-2 focus:ring-[#0A192F]"
+                        />
+                     </div>
+                  </div>
+
+                  <button 
+                     onClick={handleInvest}
+                     disabled={investing || investSuccess}
+                     className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 ${
+                        investSuccess 
+                        ? 'bg-green-500 text-white cursor-default' 
+                        : 'bg-[#0A192F] text-white hover:bg-slate-800'
+                     }`}
+                  >
+                     {investing ? (
+                        <>
+                           <Spinner size="sm" color="border-white" />
+                           <span>Processing...</span>
+                        </>
+                     ) : investSuccess ? (
+                        <>
+                           <CheckCircleIcon className="w-6 h-6" />
+                           <span>Successful!</span>
+                        </>
+                     ) : (
+                        "Invest Now"
+                     )}
+                  </button>
+                  
+                  <p className="text-xs text-slate-400 text-center mt-4">
+                     By investing, you agree to our Terms of Service and Risk Disclosure.
+                  </p>
+               </div>
+            </div>
+         </div>
       </div>
     </div>
   );

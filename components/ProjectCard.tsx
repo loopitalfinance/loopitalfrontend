@@ -5,10 +5,12 @@ import { ArrowTrendingUpIcon, ClockIcon, ArrowRightIcon } from '@heroicons/react
 
 interface Props {
   project: Project;
-  onViewDetails: (project: Project) => void;
+  onViewDetails?: (project: Project) => void;
+  onManage?: (project: Project) => void;
+  onClick?: () => void;
 }
 
-const ProjectCard: React.FC<Props> = ({ project, onViewDetails }) => {
+const ProjectCard: React.FC<Props> = ({ project, onViewDetails, onManage, onClick }) => {
   const [animatedWidth, setAnimatedWidth] = useState(0);
   const percentRaised = Math.min(100, Math.round((project.raisedAmount / project.targetAmount) * 100));
 
@@ -22,33 +24,55 @@ const ProjectCard: React.FC<Props> = ({ project, onViewDetails }) => {
   
   return (
     <div 
-      onClick={() => onViewDetails(project)}
+      onClick={() => {
+        if (onClick) {
+          onClick();
+        } else if (onManage) {
+          onManage(project);
+        } else if (onViewDetails) {
+          onViewDetails(project);
+        } else {
+           // Default navigation if no handler provided
+           window.location.href = `/projects/${project.uuid || project.id}`;
+        }
+      }}
       className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full cursor-pointer"
     >
       {/* Image Section */}
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-32 sm:h-48 overflow-hidden">
         <img 
-          src={project.imageUrl} 
+          src={project.image} 
           alt={project.title} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0A192F]/80 to-transparent opacity-60"></div>
-        
+        {/* Category Badge */}
         <div className="absolute top-4 left-4">
-           <span className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-md text-[10px] font-bold text-[#0A192F] uppercase tracking-wide border border-white/20">
+           <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border shadow-sm ${
+             project.sector === 'Agriculture' ? 'bg-emerald-500 text-white border-emerald-400' :
+             project.sector === 'Real Estate' ? 'bg-blue-500 text-white border-blue-400' :
+             'bg-slate-800 text-white border-slate-700'
+           }`}>
              {project.sector}
            </span>
         </div>
-        
-        <div className="absolute bottom-4 left-4 right-4 text-white">
-           <h3 className="text-lg font-bold leading-snug drop-shadow-sm">{project.title}</h3>
-           <p className="text-xs text-slate-200 mt-1 opacity-90">{project.owner}</p>
-        </div>
+
+        {/* Verified Badge */}
+        {project.isVerified && (
+           <div className="absolute top-4 right-4">
+              <span className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-md text-[10px] font-bold text-[#0A192F] uppercase tracking-wide border border-white/20 flex items-center gap-1">
+                <svg className="w-3 h-3 text-[#00DC82]" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Verified
+              </span>
+           </div>
+        )}
       </div>
       
       {/* Content Section */}
-      <div className="p-5 flex flex-col flex-grow">
-        <p className="text-xs text-slate-500 leading-relaxed mb-6 line-clamp-2">
+      <div className="p-4 sm:p-5 flex flex-col flex-grow">
+        <h3 className="text-sm sm:text-lg font-bold text-[#0A192F] leading-snug mb-2 line-clamp-2">{project.title}</h3>
+        <p className="hidden sm:block text-xs text-slate-500 leading-relaxed mb-6 line-clamp-2">
            {project.description}
         </p>
         
@@ -70,53 +94,52 @@ const ProjectCard: React.FC<Props> = ({ project, onViewDetails }) => {
              </div>
              
             <div className="flex justify-between items-end mb-1.5">
-               <div className="flex flex-col">
-                 <span className="text-[10px] text-slate-400 font-bold uppercase">Raised</span>
-                 <span className="text-sm font-bold text-[#0A192F] animate-pulse">₦{(project.raisedAmount / 1000000).toFixed(1)}M</span>
-               </div>
-               <span className="text-xs font-bold text-[#00DC82] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                 {percentRaised}%
+               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Funding Progress</span>
+               <span className="text-xs font-bold text-[#00DC82]">
+                 {percentRaised}% Funded
                </span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div 
-                className="h-full rounded-full bg-gradient-to-r from-teal-500 to-violet-600 shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000 ease-out relative overflow-hidden" 
+                className="h-full rounded-full bg-[#00DC82] transition-all duration-1000 ease-out relative" 
                 style={{ width: `${animatedWidth}%` }}
               >
-                <div className="absolute inset-0 bg-white/20"></div>
-                {/* Shimmer Effect */}
-                <div className="absolute top-0 bottom-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:translate-x-[250%] transition-transform duration-[1.5s] ease-in-out"></div>
               </div>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-50">
-            <div className="flex items-center gap-2">
-               <div className="p-1.5 bg-emerald-50 rounded-lg">
-                 <ArrowTrendingUpIcon className="w-3.5 h-3.5 text-[#00DC82]" />
-               </div>
-               <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Target ROI</p>
-                  <p className="text-xs font-bold text-[#0A192F]">{project.roi}% <span className="text-slate-400 font-normal">/ yr</span></p>
-               </div>
-            </div>
-            <div className="flex items-center gap-2">
-               <div className="p-1.5 bg-blue-50 rounded-lg">
-                 <ClockIcon className="w-3.5 h-3.5 text-blue-500" />
-               </div>
-               <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Duration</p>
-                  <p className="text-xs font-bold text-[#0A192F]">{project.durationMonths} Mo</p>
-               </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 py-4 border-t border-slate-50">
+            {project.category === 'Startup' ? (
+              <>
+                <div>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Equity</p>
+                   <p className="text-sm font-bold text-[#00DC82]">{project.equityPercentage}% <span className="text-[10px] text-slate-400 font-normal">Offer</span></p>
+                </div>
+                <div>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Valuation</p>
+                   <p className="text-sm font-bold text-[#0A192F]">₦{(project.valuation ? project.valuation / 1000000 : 0).toFixed(1)}M</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Target ROI</p>
+                   <p className="text-sm font-bold text-[#00DC82]">{project.roi}% <span className="text-[10px] text-slate-400 font-normal">/ yr</span></p>
+                </div>
+                <div>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Duration</p>
+                   <p className="text-sm font-bold text-[#0A192F]">{project.durationMonths} Mo</p>
+                </div>
+              </>
+            )}
           </div>
 
           <button 
             type="button"
-            className="w-full py-2.5 bg-[#0A192F] text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg pointer-events-none"
+            className="w-full py-2.5 sm:py-3 bg-[#0A192F] text-white text-[11px] sm:text-xs font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 group-hover:shadow-lg"
           >
-            View Details <ArrowRightIcon className="w-3 h-3 text-[#00DC82]" />
+            View Details <ArrowRightIcon className="w-3 h-3" />
           </button>
         </div>
       </div>

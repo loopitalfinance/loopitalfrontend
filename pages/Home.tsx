@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 import { 
   ArrowRightIcon, 
   ChevronDownIcon, 
@@ -77,10 +79,19 @@ const FaqItem = ({ question, answer }: { question: string, answer: string }) => 
 };
 
 const Home: React.FC<Props> = ({ onGetStarted }) => {
+  const navigate = useNavigate();
   const [activeWorkflow, setActiveWorkflow] = useState<'investor' | 'business'>('investor');
 
   return (
     <div className="bg-slate-50 font-inter overflow-x-hidden">
+      <Navbar
+        user={null}
+        currentView="home"
+        onChangeView={(view) => {
+          if (view === 'home') navigate('/');
+          if (view === 'auth') navigate('/auth/login');
+        }}
+      />
       
       {/* --- MODERN FINTECH HERO SECTION --- */}
       <section className="relative pt-32 pb-16 lg:pt-48 lg:pb-24 overflow-hidden bg-white">

@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
+import { usePaystackPayment } from 'react-paystack';
+import { toast } from 'react-hot-toast';
 import { 
   XMarkIcon, 
   CreditCardIcon, 
@@ -13,19 +15,22 @@ import {
   LockClosedIcon,
   FingerPrintIcon
 } from '@heroicons/react/24/outline';
-import { Project } from '../types';
+import { Project, User } from '../types';
+import { api } from '../services/api';
 
 interface TopUpProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (amount: number) => void;
+  onSuccess: (amount: number, newBalance?: number) => void;
+  email: string;
 }
 
 interface WithdrawProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (amount: number) => void;
+  onSuccess: (amount: number, newBalance?: number) => void;
   currentBalance: number;
+  user?: User;
 }
 
 interface InvestProps {
@@ -54,46 +59,80 @@ const AmountInput = ({ value, onChange, label }: { value: string, onChange: (val
   </div>
 );
 
-export const TopUpModal: React.FC<TopUpProps> = ({ isOpen, onClose, onSuccess }) => {
+export const TopUpModal: React.FC<TopUpProps> = ({ isOpen, onClose, onSuccess, email }) => {
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'card' | 'transfer' | 'ussd'>('card');
   const [step, setStep] = useState<'input' | 'processing' | 'success'>('input');
+  const [newBalance, setNewBalance] = useState<number | null>(null);
+  
+  // Use a stable reference per session or generate only when needed
+  // Since we need to pass config to usePaystackPayment, we should memoize it
+  const reference = React.useMemo(() => (new Date()).getTime().toString(), [isOpen]);
+
+  const config = {
+      reference: reference,
+      email: email,
+      amount: parseFloat(amount || '0') * 100, // Paystack is in kobo
+      publicKey: 'pk_test_13449920aaa915f243a95926ec029dfe609dbbee',
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const onSuccessPayment = async (reference: any) => {
+      console.log("Paystack Success Callback:", reference);
+      setStep('processing');
+      try {
+          const data = await api.verifyDeposit(reference.reference);
+          setNewBalance(data.newBalance);
+          setStep('success');
+          toast.success(data.message || 'Deposit successful');
+      } catch (error: any) {
+          console.error("Deposit Verification Error:", error);
+          toast.error(error.message || 'Deposit verification failed');
+          setStep('input');
+      }
+  };
+
+  const onClosePayment = () => {
+      toast('Payment cancelled');
+  };
 
   // Reset state on open
   useEffect(() => {
     if (isOpen) {
       setAmount('');
       setStep('input');
-      setMethod('card');
+      setNewBalance(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleProcess = () => {
-    if (!amount || parseFloat(amount) <= 0) return;
-    setStep('processing');
-    setTimeout(() => {
-      setStep('success');
-    }, 2000);
+    if (!amount || parseFloat(amount) <= 0) {
+        toast.error('Please enter a valid amount');
+        return;
+    }
+    initializePayment({ onSuccess: onSuccessPayment, onClose: onClosePayment });
   };
 
   const handleClose = () => {
     if (step === 'success') {
-      onSuccess(parseFloat(amount));
+      onSuccess(parseFloat(amount), newBalance || undefined);
+      // Reload page to ensure balance is reflected from backend
+      window.location.reload();
     }
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+      <div className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
       
       <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl relative z-10 overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100">
           <h3 className="text-xl font-bold text-[#0A192F]">Fund Wallet</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+          <button onClick={handleClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <XMarkIcon className="w-5 h-5 text-slate-400" />
           </button>
         </div>
@@ -104,29 +143,15 @@ export const TopUpModal: React.FC<TopUpProps> = ({ isOpen, onClose, onSuccess })
               <AmountInput value={amount} onChange={setAmount} label="Amount to Deposit" />
               
               <div className="mb-8">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Select Method</label>
-                <div className="grid grid-cols-3 gap-3">
-                  <button 
-                    onClick={() => setMethod('card')}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${method === 'card' ? 'border-[#00DC82] bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <CreditCardIcon className={`w-6 h-6 mb-2 ${method === 'card' ? 'text-[#00DC82]' : 'text-slate-400'}`} />
-                    <span className={`text-xs font-bold ${method === 'card' ? 'text-[#0A192F]' : 'text-slate-500'}`}>Card</span>
-                  </button>
-                  <button 
-                    onClick={() => setMethod('transfer')}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${method === 'transfer' ? 'border-[#00DC82] bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <BuildingLibraryIcon className={`w-6 h-6 mb-2 ${method === 'transfer' ? 'text-[#00DC82]' : 'text-slate-400'}`} />
-                    <span className={`text-xs font-bold ${method === 'transfer' ? 'text-[#0A192F]' : 'text-slate-500'}`}>Transfer</span>
-                  </button>
-                  <button 
-                    onClick={() => setMethod('ussd')}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${method === 'ussd' ? 'border-[#00DC82] bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <DevicePhoneMobileIcon className={`w-6 h-6 mb-2 ${method === 'ussd' ? 'text-[#00DC82]' : 'text-slate-400'}`} />
-                    <span className={`text-xs font-bold ${method === 'ussd' ? 'text-[#0A192F]' : 'text-slate-500'}`}>USSD</span>
-                  </button>
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+                   <div className="p-2 bg-white rounded-full shadow-sm">
+                      <CreditCardIcon className="w-6 h-6 text-[#00DC82]" />
+                   </div>
+                   <div>
+                      <p className="text-sm font-bold text-[#0A192F]">Paystack Secure Payment</p>
+                      <p className="text-xs text-slate-500">Cards, USSD, Bank Transfer</p>
+                   </div>
+                   <CheckCircleIcon className="w-6 h-6 text-[#00DC82] ml-auto" />
                 </div>
               </div>
 
@@ -135,7 +160,7 @@ export const TopUpModal: React.FC<TopUpProps> = ({ isOpen, onClose, onSuccess })
                 disabled={!amount}
                 className="w-full py-4 bg-[#0A192F] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-slate-900/20 transition-all active:scale-[0.98]"
               >
-                Proceed to Pay ₦{amount ? parseFloat(amount).toLocaleString() : '0.00'}
+                Pay ₦{amount ? parseFloat(amount).toLocaleString() : '0.00'}
               </button>
             </>
           )}
@@ -175,42 +200,73 @@ export const TopUpModal: React.FC<TopUpProps> = ({ isOpen, onClose, onSuccess })
   );
 };
 
-export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSuccess, currentBalance }) => {
+export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSuccess, currentBalance, user }) => {
   const [amount, setAmount] = useState('');
-  const [step, setStep] = useState<'input' | 'verification' | 'processing' | 'success'>('input');
+  const [step, setStep] = useState<'link' | 'input' | 'processing' | 'success'>('input');
+  const [newBalance, setNewBalance] = useState<number | null>(null);
+
+  // Bank Linking State
+  const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
-  const [bank, setBank] = useState('GTBank');
-  const [verificationCode, setVerificationCode] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setAmount('');
-      setStep('input');
-      setAccountNumber('');
-      setVerificationCode('');
+      setNewBalance(null);
+      
+      // Check if user has bank account
+      if (user && !user.bankAccount) {
+         setStep('link');
+      } else {
+         setStep('input');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
 
-  const handleInitiate = () => {
-    if (!amount || parseFloat(amount) <= 0 || parseFloat(amount) > currentBalance) return;
-    setStep('verification');
+  const handleLinkBank = async () => {
+      if (!bankName || !accountNumber || !accountName) {
+          toast.error("Please fill in all bank details");
+          return;
+      }
+      setIsLinking(true);
+      try {
+          await api.linkBank(bankName, accountNumber, accountName);
+          toast.success("Bank account linked successfully");
+          // Ideally update user object here, but for now proceed to input
+          setStep('input');
+          // Reload page to refresh user data context if possible, or just proceed
+          // We can assume it's linked now for the session
+      } catch (e: any) {
+          toast.error(e.message || "Failed to link bank account");
+      } finally {
+          setIsLinking(false);
+      }
   };
 
-  const handleVerify = () => {
-    // Mock verification check
-    if (verificationCode.length < 4) return;
+  const handleWithdraw = async () => {
+    if (!amount || parseFloat(amount) <= 0 || parseFloat(amount) > currentBalance) return;
     
     setStep('processing');
-    setTimeout(() => {
-      setStep('success');
-    }, 2000);
+    try {
+        const data = await api.withdraw(parseFloat(amount));
+        setNewBalance(data.newBalance);
+        setStep('success');
+        toast.success(data.message || 'Withdrawal request submitted');
+    } catch (error: any) {
+        console.error(error);
+        toast.error(error.message || 'Withdrawal failed');
+        setStep('input');
+    }
   };
 
   const handleClose = () => {
     if (step === 'success') {
-      onSuccess(parseFloat(amount));
+      onSuccess(parseFloat(amount), newBalance || undefined);
+      window.location.reload();
     }
     onClose();
   };
@@ -221,22 +277,76 @@ export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSucc
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+      <div className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
       
       <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl relative z-10 overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100">
           <h3 className="text-xl font-bold text-[#0A192F]">
-            {step === 'verification' ? 'Security Check' : 'Withdraw Funds'}
+            {step === 'link' ? 'Link Bank Account' : 'Withdraw Funds'}
           </h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+          <button onClick={handleClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <XMarkIcon className="w-5 h-5 text-slate-400" />
           </button>
         </div>
 
         <div className="p-8">
+          {step === 'link' && (
+             <div className="space-y-4">
+                 <div className="p-4 bg-blue-50 text-blue-800 rounded-xl text-sm mb-4">
+                    Please link a bank account to receive withdrawals.
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Bank Name</label>
+                    <input 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        placeholder="e.g. GTBank"
+                        value={bankName}
+                        onChange={e => setBankName(e.target.value)}
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Account Number</label>
+                    <input 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        placeholder="0123456789"
+                        value={accountNumber}
+                        onChange={e => setAccountNumber(e.target.value)}
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Account Name</label>
+                    <input 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        placeholder="John Doe"
+                        value={accountName}
+                        onChange={e => setAccountName(e.target.value)}
+                    />
+                 </div>
+                 <button 
+                    onClick={handleLinkBank}
+                    disabled={isLinking}
+                    className="w-full py-4 bg-[#0A192F] text-white font-bold rounded-xl mt-4 hover:bg-slate-800 transition-all"
+                 >
+                    {isLinking ? 'Linking...' : 'Link Account'}
+                 </button>
+             </div>
+          )}
+
           {step === 'input' && (
             <>
+              {/* Show linked account info if available */}
+              {user?.bankAccount && (
+                  <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                          <p className="text-xs font-bold text-slate-400 uppercase">Withdraw to</p>
+                          <p className="font-bold text-[#0A192F]">{user.bankAccount.bankName}</p>
+                          <p className="text-sm text-slate-500">{user.bankAccount.accountNumber}</p>
+                      </div>
+                      <BuildingLibraryIcon className="w-6 h-6 text-slate-300" />
+                  </div>
+              )}
+
               <div className="flex justify-between items-end mb-2">
                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
                  <button onClick={handleMax} className="text-xs font-bold text-[#00DC82] hover:underline">
@@ -244,7 +354,7 @@ export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSucc
                  </button>
               </div>
               
-              <div className="relative mb-6">
+              <div className="relative mb-8">
                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-300">₦</span>
                  <input
                    type="number"
@@ -258,108 +368,42 @@ export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSucc
                  )}
               </div>
 
-              <div className="space-y-4 mb-8">
-                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Destination Account</h4>
-                 <div>
-                    <select 
-                      value={bank}
-                      onChange={(e) => setBank(e.target.value)}
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-[#0A192F] focus:ring-2 focus:ring-[#00DC82] focus:outline-none mb-3"
-                    >
-                      <option>GTBank</option>
-                      <option>Access Bank</option>
-                      <option>Zenith Bank</option>
-                      <option>UBA</option>
-                      <option>Kuda Bank</option>
-                    </select>
-                    <input 
-                      type="text"
-                      value={accountNumber}
-                      onChange={(e) => setAccountNumber(e.target.value)}
-                      placeholder="Account Number"
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-[#00DC82] focus:outline-none"
-                    />
-                 </div>
-              </div>
-
               <button 
-                onClick={handleInitiate}
-                disabled={!amount || parseFloat(amount) > currentBalance || !accountNumber}
+                onClick={handleWithdraw}
+                disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > currentBalance}
                 className="w-full py-4 bg-[#0A192F] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-slate-900/20 transition-all active:scale-[0.98]"
               >
-                Continue
+                Confirm Withdrawal
               </button>
             </>
           )}
 
-          {step === 'verification' && (
-             <div className="animate-fade-in">
-                <div className="flex flex-col items-center mb-6">
-                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                      <FingerPrintIcon className="w-8 h-8 text-[#0A192F]" />
-                   </div>
-                   <p className="text-center text-sm text-slate-600 max-w-[250px]">
-                      Please enter your 4-digit Transaction PIN or 2FA Code to confirm withdrawal.
-                   </p>
-                </div>
-
-                <div className="mb-6">
-                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Transaction PIN / 2FA</label>
-                   <div className="relative">
-                      <LockClosedIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="password"
-                        value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-lg font-bold text-[#0A192F] focus:outline-none focus:border-[#00DC82] focus:bg-white transition-all tracking-widest"
-                        placeholder="••••"
-                        autoFocus
-                        maxLength={6}
-                      />
-                   </div>
-                   <button className="text-xs font-bold text-[#00DC82] mt-2 hover:underline">Resend Code</button>
-                </div>
-                
-                <div className="flex gap-3">
-                   <button 
-                     onClick={() => setStep('input')}
-                     className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all"
-                   >
-                     Back
-                   </button>
-                   <button 
-                     onClick={handleVerify}
-                     disabled={verificationCode.length < 4}
-                     className="flex-1 py-3 bg-[#0A192F] hover:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg transition-all"
-                   >
-                     Confirm
-                   </button>
-                </div>
-             </div>
-          )}
-
           {step === 'processing' && (
             <div className="flex flex-col items-center justify-center py-12">
-               <ArrowPathIcon className="w-12 h-12 text-[#00DC82] animate-spin mb-4" />
-               <h4 className="text-xl font-bold text-[#0A192F] mb-2">Processing Withdrawal</h4>
-               <p className="text-slate-500 text-sm">Verifying account details...</p>
+              <div className="relative w-20 h-20 mb-6">
+                 <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                 <div className="absolute inset-0 border-4 border-[#00DC82] rounded-full border-t-transparent animate-spin"></div>
+                 <ArrowPathIcon className="absolute inset-0 m-auto w-8 h-8 text-[#0A192F]" />
+              </div>
+              <h4 className="text-xl font-bold text-[#0A192F] mb-2">Processing Withdrawal</h4>
+              <p className="text-slate-500 text-sm">Please wait...</p>
             </div>
           )}
 
           {step === 'success' && (
             <div className="flex flex-col items-center justify-center py-8 text-center animate-fade-in">
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                <CheckCircleIcon className="w-10 h-10 text-[#0A192F]" />
+              <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+                <CheckCircleIcon className="w-10 h-10 text-[#00DC82]" />
               </div>
-              <h4 className="text-2xl font-bold text-[#0A192F] mb-2">Withdrawal Initiated</h4>
-              <p className="text-slate-500 mb-8 max-w-[200px] mx-auto">
-                <span className="font-bold text-[#0A192F]">₦{parseFloat(amount).toLocaleString()}</span> is on its way to your bank account.
+              <h4 className="text-2xl font-bold text-[#0A192F] mb-2">Request Submitted!</h4>
+              <p className="text-slate-500 mb-8">
+                Your withdrawal of <span className="font-bold text-[#0A192F]">₦{parseFloat(amount).toLocaleString()}</span> is pending processing.
               </p>
               <button 
                 onClick={handleClose}
-                className="w-full py-4 bg-white border-2 border-slate-200 hover:border-[#00DC82] text-[#0A192F] font-bold rounded-xl transition-all"
+                className="w-full py-4 bg-[#00DC82] hover:bg-[#00c474] text-[#0A192F] font-bold rounded-xl shadow-lg transition-all"
               >
-                Close
+                Done
               </button>
             </div>
           )}
@@ -389,15 +433,30 @@ export const InvestModal: React.FC<InvestProps> = ({ isOpen, onClose, onConfirm,
     const projectedReturn = parsedAmount * (1 + project.roi / 100);
     const profit = projectedReturn - parsedAmount;
 
-    const handleInvest = () => {
+    const handleInvest = async () => {
         if (!isValid) return;
         setStep('processing');
-        setTimeout(() => {
+        try {
+            await api.investInProject(project.id, parsedAmount);
             setStep('success');
+            // Allow user to see success message briefly before callback
             setTimeout(() => {
                onConfirm(parsedAmount);
             }, 1500);
-        }, 2000);
+        } catch (error: any) {
+            console.error('Investment Error:', error);
+            // Parse error message if it's a JSON string
+            let msg = error.message;
+            try {
+                const parsed = JSON.parse(msg);
+                if (parsed.error) msg = parsed.error;
+                else if (parsed.detail) msg = parsed.detail;
+            } catch (e) {
+                // Not JSON, use as is
+            }
+            toast.error(msg || 'Investment failed');
+            setStep('input');
+        }
     };
 
     return (

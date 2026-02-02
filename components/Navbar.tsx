@@ -56,19 +56,23 @@ const Navbar: React.FC<Props> = ({
     if (!user) return [];
     if (user.role === 'ProjectOwner') {
       return [
-        { id: 'dashboard', label: 'Overview', icon: Squares2X2Icon },
+        { id: 'dashboard', label: 'Home', icon: HomeIcon },
+        { id: 'create-project', label: 'Raise Funds', icon: ChartPieIcon }, 
         { id: 'my-projects', label: 'My Projects', icon: BriefcaseIcon },
-        { id: 'create', label: 'Raise Funds', icon: ChartPieIcon }, 
-        { id: 'projects', label: 'Marketplace', icon: MagnifyingGlassIcon },
-        { id: 'profile', label: 'Settings', icon: UserCircleIcon },
+        { id: 'projects', label: 'Invest', icon: MagnifyingGlassIcon },
+        { id: 'community', label: 'Community', icon: UserGroupIcon },
+        { id: 'portfolio', label: 'Portfolio', icon: Squares2X2Icon },
+        { id: 'profile', label: 'Profile', icon: UserCircleIcon },
       ];
     }
     if (user.role === 'Admin') {
        return [
-        { id: 'dashboard', label: 'Overview', icon: Squares2X2Icon },
+        { id: 'dashboard', label: 'Home', icon: HomeIcon },
         { id: 'vetting', label: 'Vetting', icon: ShieldCheckIcon },
         { id: 'users', label: 'User Mgmt', icon: UserGroupIcon },
-        { id: 'profile', label: 'Settings', icon: UserCircleIcon },
+        { id: 'projects', label: 'Invest', icon: MagnifyingGlassIcon },
+        { id: 'community', label: 'Community', icon: UserGroupIcon },
+        { id: 'profile', label: 'Profile', icon: UserCircleIcon },
       ];
     }
     // Investor
