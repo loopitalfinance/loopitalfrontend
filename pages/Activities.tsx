@@ -116,71 +116,104 @@ const Activities: React.FC = () => {
   };
 
   const downloadPdf = () => {
-    const now = new Date();
-    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const title = `Loopital Activities (${ts})`;
+    const build = async () => {
+      const now = new Date();
+      const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const filename = `loopital_activities_${ts}.pdf`;
+      const title = `Loopital Activities (${ts})`;
 
-    const rowsHtml = normalized
-      .map(({ a, date, title: typeTitle, amount, hasAmount }) => {
+      const [{ jsPDF }] = await Promise.all([import('jspdf')]);
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const marginX = 40;
+      const marginTop = 44;
+      const rowGap = 12;
+      const fontSize = 9;
+
+      const writeWrapped = (text: string, x: number, y: number, maxWidth: number) => {
+        const lines = doc.splitTextToSize(text, maxWidth);
+        doc.text(lines, x, y);
+        return lines.length;
+      };
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(title, marginX, marginTop);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(fontSize);
+
+      let y = marginTop + 22;
+
+      const columns = [
+        { label: 'Date', width: 92 },
+        { label: 'Type', width: 64 },
+        { label: 'Project', width: 92 },
+        { label: 'Amount', width: 64 },
+        { label: 'Status', width: 56 },
+      ];
+      const tableWidth = columns.reduce((sum, c) => sum + c.width, 0);
+      const descriptionWidth = Math.max(100, pageWidth - marginX * 2 - tableWidth - 12);
+
+      const writeHeader = () => {
+        doc.setFont('helvetica', 'bold');
+        const headerY = y;
+        let x = marginX;
+        columns.forEach((c) => {
+          doc.text(c.label, x, headerY);
+          x += c.width;
+        });
+        doc.text('Description', x + 12, headerY);
+        doc.setFont('helvetica', 'normal');
+        y += 14;
+        doc.setDrawColor(226, 232, 240);
+        doc.line(marginX, y, pageWidth - marginX, y);
+        y += 12;
+      };
+
+      writeHeader();
+
+      for (const { a, date, title: typeTitle, amount, hasAmount } of normalized) {
         const dateText = date ? date.toLocaleString() : String(a.date || a.createdAt || a.requestDate || '');
         const project = String(a.project || '');
         const status = String(a.status || '');
         const description = String(a.description || a.title || '');
-        const amountText = hasAmount ? `${String(amount)}` : '';
-        const cells = [dateText, typeTitle, project, amountText, status, description]
-          .map((v) => `<td>${String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`)
-          .join('');
-        return `<tr>${cells}</tr>`;
-      })
-      .join('');
+        const amountText = hasAmount
+          ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Number(amount))
+          : '';
 
-    const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${title}</title>
-    <style>
-      @page { size: A4; margin: 16mm; }
-      body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; }
-      h1 { font-size: 16px; margin: 0 0 8px; }
-      p.meta { font-size: 11px; color: #64748b; margin: 0 0 16px; }
-      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { border: 1px solid #e2e8f0; padding: 8px; font-size: 10px; vertical-align: top; word-wrap: break-word; }
-      th { background: #f8fafc; text-align: left; }
-      tr:nth-child(even) td { background: #fcfcfd; }
-    </style>
-  </head>
-  <body>
-    <h1>${title}</h1>
-    <p class="meta">Tip: In the print dialog choose “Save as PDF”.</p>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 16%;">Date</th>
-          <th style="width: 12%;">Type</th>
-          <th style="width: 16%;">Project</th>
-          <th style="width: 10%;">Amount</th>
-          <th style="width: 10%;">Status</th>
-          <th style="width: 36%;">Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-      </tbody>
-    </table>
-    <script>
-      window.onload = () => {
-        setTimeout(() => window.print(), 100);
-      };
-    </script>
-  </body>
-</html>`;
+        const cells = [dateText, typeTitle, project, amountText, status];
+        const startY = y;
+        let maxLines = 1;
 
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    if (!w) return;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+        let x = marginX;
+        for (let i = 0; i < columns.length; i += 1) {
+          const lineCount = writeWrapped(cells[i] || '', x, startY, columns[i].width - 6);
+          maxLines = Math.max(maxLines, lineCount);
+          x += columns[i].width;
+        }
+        const descLines = writeWrapped(description, x + 12, startY, descriptionWidth);
+        maxLines = Math.max(maxLines, descLines);
+
+        y += maxLines * rowGap + 6;
+        doc.setDrawColor(241, 245, 249);
+        doc.line(marginX, y, pageWidth - marginX, y);
+        y += 10;
+
+        if (y > pageHeight - 60) {
+          doc.addPage();
+          y = marginTop;
+          writeHeader();
+        }
+      }
+
+      doc.save(filename);
+    };
+
+    build().catch(() => {});
   };
 
   return (
