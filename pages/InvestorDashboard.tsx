@@ -22,9 +22,9 @@ import {
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { Project, User, Investment, Transaction } from '../types';
-import { api } from '../services/api';
+import { api, BACKEND_URL } from '../services/api';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = BACKEND_URL;
 
 const getImageUrl = (path: string | undefined) => {
     if (!path) return null;

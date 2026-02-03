@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project } from '../types';
 import axios from 'axios';
+import { API_URL } from '../services/api';
 
 interface InvestmentFormProps {
   project: Project;
@@ -19,8 +20,8 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({ project, onSuccess, onC
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get('http://127.0.0.1:8000/api/wallet/balance/', {
+        const token = localStorage.getItem('loopital_token');
+        const response = await axios.get(`${API_URL}/wallet/balance/`, {
           headers: { Authorization: `Token ${token}` }
         });
         setWalletBalance(Number(response.data.balance));
@@ -51,9 +52,9 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({ project, onSuccess, onC
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('loopital_token');
       // Using the new dedicated endpoint
-      await axios.post(`http://127.0.0.1:8000/api/projects/${project.id}/invest/`, {
+      await axios.post(`${API_URL}/projects/${project.id}/invest/`, {
         amount: amount
       }, {
         headers: { Authorization: `Token ${token}` }

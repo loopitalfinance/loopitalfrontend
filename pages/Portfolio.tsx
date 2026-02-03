@@ -16,8 +16,9 @@ import {
   WalletIcon
 } from '@heroicons/react/24/outline';
 import { Project } from '../types';
+import { BACKEND_URL } from '../services/api';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = BACKEND_URL;
 
 const getImageUrl = (path: string | undefined) => {
     if (!path) return null;

@@ -1,5 +1,10 @@
 
-const API_URL = 'http://localhost:8000/api';
+export const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL.includes('http') 
+  ? import.meta.env.VITE_BACKEND_URL 
+  : 'https://loopital.onrender.com').replace(/\/+$/, '');
+export const API_URL = (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.includes('http')
+  ? import.meta.env.VITE_API_URL 
+  : `${BACKEND_URL}/api`).replace(/\/+$/, '');
 
 const toCamelCase = (str: string) => {
   return str.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
