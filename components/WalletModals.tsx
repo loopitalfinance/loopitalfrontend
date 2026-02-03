@@ -234,7 +234,8 @@ export const WithdrawModal: React.FC<WithdrawProps> = ({ isOpen, onClose, onSucc
       }
       setIsLinking(true);
       try {
-          await api.linkBank(bankName, accountNumber, accountName);
+          // Pass empty string for bankCode since it's not captured here
+          await api.linkBank(bankName, accountNumber, accountName, '');
           toast.success("Bank account linked successfully");
           // Ideally update user object here, but for now proceed to input
           setStep('input');

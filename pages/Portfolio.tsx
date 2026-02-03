@@ -417,18 +417,9 @@ const Portfolio: React.FC = () => {
                      </button>
                     </div>
                  </div>
-              );
-           })}
-           {groupedInvestments.length === 0 && (
-              <div className="col-span-full py-20 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 border-dashed">
-                 <BriefcaseIcon className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Investments Found</h3>
-                 <p className="text-slate-500 dark:text-slate-400 text-sm">
-                    {searchTerm ? 'Try adjusting your search terms.' : 'Visit the marketplace to start building your portfolio.'}
-                 </p>
-              </div>
-           )}
-        </div>
+               );
+            }))}
+         </div>
       )}
 
       {activeTab === 'payouts' && (

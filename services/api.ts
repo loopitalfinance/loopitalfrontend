@@ -154,8 +154,15 @@ export const api = {
         error.status = response.status;
         throw error;
       }
-      const data = await response.json();
-      return keysToCamelCase(data);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        return keysToCamelCase(data);
+      } else {
+        const text = await response.text();
+        console.error('GetUser returned non-JSON response:', text.substring(0, 500));
+        throw new Error(`Server returned unexpected response format (not JSON). Response: ${text.substring(0, 100)}...`);
+      }
     } catch (error) {
       console.error('Get user error:', error);
       throw error;
@@ -244,8 +251,15 @@ export const api = {
             throw new Error(`Server Error (${response.status}): ${text.substring(0, 100)}...`);
         }
       }
-      const data = await response.json();
-      return keysToCamelCase(data);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        return keysToCamelCase(data);
+      } else {
+        const text = await response.text();
+        console.error('Create project returned non-JSON response:', text.substring(0, 500));
+        throw new Error(`Server returned unexpected response format (not JSON) for Create Project. Response: ${text.substring(0, 100)}...`);
+      }
     } catch (error) {
       console.error('Create project error:', error);
       throw error;
@@ -469,56 +483,6 @@ export const api = {
       return keysToCamelCase(data);
     } catch (error) {
       console.error('Verify deposit error:', error);
-      throw error;
-    }
-  },
-
-  linkBank: async (bankName: string, accountNumber: string, accountName: string, bankCode?: string) => {
-    try {
-      const response = await fetch(`${API_URL}/users/link-bank/`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(keysToSnakeCase({ bankName, bankCode, accountNumber, accountName })),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(JSON.stringify(errorData) || 'Failed to link bank account');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Link bank error:', error);
-      throw error;
-    }
-  },
-
-  getBanks: async () => {
-    try {
-      const response = await fetch(`${API_URL}/users/get-banks/`, {
-        method: 'GET',
-        headers: getHeaders(),
-      });
-      if (!response.ok) throw new Error('Failed to fetch banks');
-      return await response.json();
-    } catch (error) {
-      console.error('Get banks error:', error);
-      throw error;
-    }
-  },
-
-  resolveAccount: async (accountNumber: string, bankCode: string) => {
-    try {
-      const response = await fetch(`${API_URL}/users/resolve-account/`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(keysToSnakeCase({ accountNumber, bankCode })),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to resolve account');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Resolve account error:', error);
       throw error;
     }
   },
