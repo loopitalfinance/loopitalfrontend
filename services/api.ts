@@ -99,6 +99,50 @@ export const api = {
     }
   },
 
+  getBanks: async () => {
+    try {
+      // Proxy through backend to avoid CORS/Key exposure
+      const response = await fetch(`${API_URL}/banks/`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      if (!response.ok) {
+        // Fallback or just throw
+        throw new Error('Failed to fetch banks');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Fetch banks error:', error);
+      return [];
+    }
+  },
+
+  resolveAccount: async (accountNumber: string, bankCode: string) => {
+    try {
+        const response = await fetch(`${API_URL}/resolve-account/?account_number=${accountNumber}&bank_code=${bankCode}`, {
+            headers: getHeaders()
+        });
+        if (!response.ok) throw new Error('Could not resolve account');
+        return await response.json();
+    } catch (error) {
+        throw error;
+    }
+  },
+
+  linkBank: async (bankName: string, accountNumber: string, accountName: string, bankCode: string) => {
+      try {
+          const response = await fetch(`${API_URL}/link-bank/`, {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify({ bank_name: bankName, account_number: accountNumber, account_name: accountName, bank_code: bankCode })
+          });
+          if (!response.ok) throw new Error('Failed to link bank');
+          return await response.json();
+      } catch (error) {
+          throw error;
+      }
+  },
+
   getUser: async () => {
     try {
       // Use query param for cache busting (sufficient and avoids CORS preflight issues with custom headers)
@@ -191,8 +235,14 @@ export const api = {
         body: body,
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(JSON.stringify(errorData) || 'Failed to create project');
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw new Error(JSON.stringify(errorData) || 'Failed to create project');
+        } catch (e) {
+            console.error('Create project failed with non-JSON response:', text.substring(0, 500));
+            throw new Error(`Server Error (${response.status}): ${text.substring(0, 100)}...`);
+        }
       }
       const data = await response.json();
       return keysToCamelCase(data);

@@ -296,8 +296,23 @@ const Portfolio: React.FC = () => {
 
       {activeTab === 'holdings' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 animate-fade-in">
-           {groupedInvestments.map((group) => {
-              const { project, totalAmount, currentValue, payouts, investmentsCount } = group;
+           {groupedInvestments.filter(g => g.currentValue > 0).length === 0 ? (
+               <div className="col-span-full py-12 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+                  <div className="mx-auto h-12 w-12 text-slate-300">
+                     <BriefcaseIcon />
+                  </div>
+                  <h3 className="mt-2 text-sm font-bold text-slate-900">No active holdings</h3>
+                  <p className="mt-1 text-sm text-slate-500">You don't have any active investments yet.</p>
+                  <button 
+                     onClick={() => navigate('/projects')}
+                     className="mt-4 px-4 py-2 bg-[#00DC82] text-[#0A192F] text-sm font-bold rounded-xl hover:bg-[#00DC82]/90 transition-colors"
+                  >
+                     Explore Projects
+                  </button>
+               </div>
+           ) : (
+               groupedInvestments.filter(g => g.currentValue > 0).map((group) => {
+                  const { project, totalAmount, currentValue, payouts, investmentsCount } = group;
               
               const percentReturn = totalAmount > 0 ? ((currentValue - totalAmount) / totalAmount) * 100 : 0;
               const hasReturns = payouts?.some((p: any) => p.status === 'processed');

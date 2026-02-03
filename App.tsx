@@ -18,6 +18,7 @@ import Spinner from './components/Spinner';
 import CreatorDashboardPage from './pages/CreatorDashboardPage';
 import MyProjects from './pages/MyProjects';
 import Activities from './pages/Activities';
+import Wishlist from './pages/Wishlist';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,7 +48,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/creator/dashboard" element={<ProtectedRoute><CreatorDashboardPage /></ProtectedRoute>} />
       <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-      <Route path="/wishlist" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+      <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
       <Route path="/projects/:uuid" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} />
       <Route path="/create-project" element={<ProtectedRoute><CreateProject /></ProtectedRoute>} />
       <Route path="/my-projects" element={<ProtectedRoute><MyProjects /></ProtectedRoute>} />

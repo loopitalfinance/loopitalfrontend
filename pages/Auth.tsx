@@ -56,48 +56,149 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen font-inter bg-slate-50">
-      <div className="min-h-screen grid lg:grid-cols-2">
-        <div className="hidden lg:flex relative items-center justify-center overflow-hidden bg-[#0A192F]">
-          <div className="absolute inset-0 opacity-60">
-            <div className="absolute -top-24 -right-24 h-[520px] w-[520px] bg-gradient-to-br from-[#00DC82]/25 via-white/5 to-transparent rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-28 -left-20 h-[520px] w-[520px] bg-gradient-to-tr from-teal-400/15 via-white/5 to-transparent rounded-full blur-3xl"></div>
-          </div>
-          <div className="relative z-10 max-w-md px-12 text-left">
-            <div className="mb-10">
-              <h1 className="text-4xl font-display font-bold text-white tracking-tight">
-                Loopital<span className="text-[#00DC82]">.</span>
-              </h1>
-              <p className="mt-3 text-sm text-white/70 leading-relaxed">
-                Secure access to vetted, high-yield opportunities across real assets and startups.
-              </p>
+    <div className="min-h-screen font-sans bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          {isLogin ? 'Sign in to your account' : 'Create your account'}
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <button
+            onClick={() => navigate(isLogin ? '/register' : '/login')}
+            className="font-medium text-emerald-600 hover:text-emerald-500"
+          >
+            {isLogin ? 'register a new account' : 'sign in to existing account'}
+          </button>
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {!isLogin && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+                      First Name
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        type="text"
+                        required
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+                      Last Name
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        id="lastName"
+                        name="lastName"
+                        type="text"
+                        required
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                    I am a...
+                  </label>
+                  <select
+                    id="role"
+                    name="role"
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as 'Investor' | 'ProjectOwner')}
+                  >
+                    <option value="Investor">Investor</option>
+                    <option value="ProjectOwner">Project Owner</option>
+                  </select>
+                </div>
+
+                {role === 'ProjectOwner' && (
+                  <div>
+                    <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+                      Company Name
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        id="companyName"
+                        name="companyName"
+                        type="text"
+                        required
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <div className="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                />
+              </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl shadow-black/20">
-              <div className="text-xs font-bold uppercase tracking-wider text-white/60">Built for</div>
-              <div className="mt-2 text-2xl font-bold text-white">
-                {role === 'ProjectOwner' ? 'Founders & Operators' : 'Modern Investors'}
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] text-white/70">
-                <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
-                  <div className="text-white font-bold">Transparent</div>
-                  <div className="mt-1 text-white/60">Clear terms & payout schedules.</div>
-                </div>
-                <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
-                  <div className="text-white font-bold">Effortless</div>
-                  <div className="mt-1 text-white/60">Invest, track, withdraw.</div>
-                </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <div className="mt-1">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                />
               </div>
             </div>
-          </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Processing...' : (isLogin ? 'Sign in' : 'Register')}
+              </button>
+            </div>
+          </form>
         </div>
-
-        <div className="relative flex items-center justify-center p-6 sm:p-10">
-          <div className="absolute inset-0 bg-gradient-to-b from-white via-slate-50 to-slate-100"></div>
-          <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-r from-[#0A192F] to-[#022c22] opacity-[0.08]"></div>
-
-          <div className="relative w-full max-w-md">
-            <div className="mb-6 flex items-center justify-between">
+      </div>
+    </div>
+  );
               <div className="lg:hidden">
                 <div className="text-lg font-display font-bold text-[#0A192F]">
                   Loopital<span className="text-[#00DC82]">.</span>
